@@ -92,7 +92,7 @@ void retro_get_system_info(struct retro_system_info *info)
    info->library_name     = "Craft";
    #ifdef GIT_VERSION
        info->library_version = GIT_VERSION;
-   #else   
+   #else
       info->library_version = "1.0";
    #endif
    info->need_fullpath    = false;
@@ -118,7 +118,7 @@ void retro_set_environment(retro_environment_t cb)
    bool no_content = true;
    static const struct retro_variable vars[] = {
       { "craft_resolution",
-         "Resolution (restart); 640x480|320x200|640x400|960x600|1280x800|1600x1000|1920x1200|2240x1400|2560x1600|2880x1800|3200x2000|3520x2200|3840x2400|7680x4320|15360x8640|16000x9000|320x240|320x480|360x200|360x240|360x400|360x480|400x224|480x272|512x224|512x240|512x384|512x512|640x224|640x240|640x448|720x576|800x480|800x600|960x720|1024x768|1280x720|1366x768|1600x900|1920x1080|2048x2048|4096x4096" },
+         "Resolution (restart); 320x200|640x400|640x480|960x600|1280x800|1600x1000|1920x1200|2240x1400|2560x1600|2880x1800|3200x2000|3520x2200|3840x2400|7680x4320|15360x8640|16000x9000|320x240|320x480|360x200|360x240|360x400|360x480|400x224|480x272|512x224|512x240|512x384|512x512|640x224|640x240|640x448|720x576|800x480|800x600|960x720|1024x768|1280x720|1366x768|1600x900|1920x1080|2048x2048|4096x4096" },
       { "craft_show_info_text",
          "Show info text; disabled|enabled" },
       { "craft_jumping_flash_mode",
@@ -185,7 +185,7 @@ static void check_variables(bool first_time_startup)
    struct retro_variable var = {0};
    var.key = "craft_resolution";
 
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value && 
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value &&
          first_time_startup)
    {
       char *pch;
@@ -356,7 +356,7 @@ bool retro_load_game(const struct retro_game_info *info)
    params.framebuffer_lock      = context_framebuffer_lock;
 
    if (!glsm_ctl(GLSM_CTL_STATE_CONTEXT_INIT, &params))
-      return false;   
+      return false;
 #endif
 
    environ_cb(RETRO_ENVIRONMENT_SET_KEYBOARD_CALLBACK, &cb);

@@ -28,6 +28,20 @@
 #include <retro_miscellaneous.h>
 #endif
 
+#ifdef HAVE_JIT
+#include "luajit.h"
+#endif
+
+// LuaUTF8
+#include "lua.h"
+
+//#include "deps/luautf8/lutf8lib.h"
+
+// LuaSocket
+#ifdef WANT_LUASOCKET
+#include "deps/luasocket/luasocket.h"
+#endif
+
 #include "../textures/font_texture.h"
 #include "../textures/sign_texture.h"
 #include "../textures/sky_texture.h"
@@ -66,6 +80,8 @@ float DEADZONE_RADIUS = 0.040;
 #define WORKER_IDLE 0
 #define WORKER_BUSY 1
 #define WORKER_DONE 2
+
+static lua_State *L;
 
 typedef struct {
     Map map;
@@ -2959,7 +2975,7 @@ void on_scroll(double xdelta, double ydelta)
 }
 
 static void handle_mouse_input(void)
-{ 
+{
     static int pmr = 0;
     static int pml = 0;
     static int pmm = 0;
@@ -2979,7 +2995,7 @@ static void handle_mouse_input(void)
         s->rx += mx * m;
         s->ry += my * m;
 
-        if (s->rx < 0) 
+        if (s->rx < 0)
             s->rx += RADIANS(360);
 
         if (s->rx >= RADIANS(360))
@@ -2992,13 +3008,13 @@ static void handle_mouse_input(void)
     mr = input_state_cb(0, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_RIGHT);
     ml = input_state_cb(0, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_LEFT);
     mm = input_state_cb(0, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_MIDDLE);
-    
+
     if (pmr == 0 && mr == 1) // Button press event
         on_right_click();
-    
+
     if (pml == 0 && ml == 1)
         on_left_click();
-    
+
     if (pmm == 0 && mm == 1)
         on_middle_click();
 
@@ -3043,9 +3059,9 @@ void handle_movement(double dt)
          sx--;
       if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R))
          sx++;
-      if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L2))   
+      if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L2))
          s->ry += m;
-      if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R2))  
+      if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R2))
          s->ry -= m;
 
       // ANALOG INPUT //
@@ -3280,6 +3296,13 @@ int main_init(void)
    srand(time(NULL));
    rand();
 
+   L = luaL_newstate();
+   luaL_openlibs(L);
+
+   #ifdef HAVE_JIT
+      luaJIT_setmode(L, -1, LUAJIT_MODE_WRAPCFUNC|LUAJIT_MODE_ON);
+   #endif
+
    return 0;
 }
 
@@ -3421,6 +3444,8 @@ void main_deinit(void)
    renderer_del_buffer(info.sky_buffer);
    delete_all_chunks();
    delete_all_players();
+
+   lua_close(L);
 }
 
 int main_run(void)
@@ -3479,7 +3504,7 @@ int main_run(void)
    }
 
    // PREPARE TO RENDER //
-   
+
    if (g->observe1 != 0 && g->player_count != 0)
       g->observe1 = g->observe1 % g->player_count;
    if (g->observe2 != 0 && g->player_count != 0)

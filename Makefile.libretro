@@ -3,51 +3,59 @@ PERF_TEST=0
 HAVE_SHARED_CONTEXT=0
 HAVE_OPENGL=1
 FORCE_GLES=0
+
 HAVE_LIBCURL=0
+HAVE_INOTIFY=0
+HAVE_COMPOSITION=0
+WANT_JIT=0
+WANT_ZLIB=1
+WANT_UNZIP=1
+WANT_LUASOCKET=0
+
+MMD := -MMD
 
 INCFLAGS  :=
-
-UNAME=$(shell uname -a)
 
 # Dirs
 ROOT_DIR := .
 LIBRETRO_DIR := $(ROOT_DIR)/libretro
 
+UNAME=$(shell uname -a)
 ifeq ($(platform),)
-	platform = unix
-	ifeq ($(UNAME),)
+ifeq ($(UNAME),)
 		platform = win
-	else ifneq ($(findstring MINGW,$(UNAME)),)
+else ifneq ($(findstring MINGW,$(UNAME)),)
 		platform = win
-	else ifneq ($(findstring Darwin,$(UNAME)),)
+else ifneq ($(findstring Darwin,$(UNAME)),)
 		platform = osx
-	else ifneq ($(findstring win,$(UNAME)),)
-		platform = win
-	endif
-endif
-
-# system platform
-system_platform = unix
-ifeq ($(shell uname -a),)
-	EXE_EXT = .exe
-	system_platform = win
-else ifneq ($(findstring Darwin,$(shell uname -a)),)
-	system_platform = osx
-	arch = intel
 ifeq ($(shell uname -p),powerpc)
-	arch = ppc
+			arch = ppc
+else
+			arch = intel
 endif
-else ifneq ($(findstring MINGW,$(shell uname -a)),)
-	system_platform = win
+else ifneq ($(findstring win,$(UNAME)),)
+		platform = win
+else
+		platform = unix
+endif
 endif
 
 # Cross compile ?
 
-ifeq (,$(ARCH))
+ifeq ($(ARCH),)
 	ARCH = $(shell uname -m)
 endif
 
-TARGET_NAME := craft
+TARGET_NAME := gridbox
+GIT_VERSION := " $(shell git rev-parse --short HEAD || echo unknown)"
+ifneq ($(GIT_VERSION)," unknown")
+	GVFLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
+endif
+LUA_MYCFLAGS :=
+LUA_SYSCFLAGS :=
+LIBM := -lm
+STATIC_LINKING := 0
+
 CC_AS ?= $(CC)
 
 ifeq ($(FORCE_GLES),1)
@@ -62,6 +70,13 @@ ifneq (,$(findstring unix,$(platform)))
 	LDFLAGS += -shared -Wl,--version-script=$(ROOT_DIR)/link.T -Wl,--no-undefined
 
 	fpic = -fPIC
+	SHARED := -shared -Wl,--no-as-needed,--no-undefined
+	LUA_SYSCFLAGS := -DLUA_USE_POSIX
+	HAVE_INOTIFY=1
+
+ifeq ($(ARCH), $(filter $(ARCH), intel))
+		WANT_JIT = 1
+endif
 
    ifeq ($(FORCE_GLES),1)
 		GLES = 1
@@ -87,7 +102,7 @@ else ifneq (,$(findstring rpi,$(platform)))
 		CXXFLAGS = -mcpu=cortex-a7 -mfloat-abi=hard
 		HAVE_NEON = 0
 	else
-		CPUFLAGS += -DARMv5_ONLY 
+		CPUFLAGS += -DARMv5_ONLY
 	endif
 
 # ODROIDs
@@ -139,6 +154,10 @@ else ifneq (,$(findstring osx,$(platform)))
         LDFLAGS += -mmacosx-version-min=10.7
 	LDFLAGS += -stdlib=libc++
 	fpic = -fPIC
+	SHARED := -dynamiclib
+	LUA_SYSCFLAGS := -DLUA_USE_MACOSX
+	CFLAGS += -DHAVE_STRL
+	MMD :=
 
 	PLATCFLAGS += -D__MACOSX__ -DOSX
 	GL_LIB := -framework OpenGL
@@ -191,7 +210,7 @@ else ifneq (,$(findstring theos_ios,$(platform)))
 	DEFINES += -DIOS
 	GLES = 1
 
-	PLATCFLAGS += -DHAVE_POSIX_MEMALIGN 
+	PLATCFLAGS += -DHAVE_POSIX_MEMALIGN
 	PLATCFLAGS += -DIOS -marm
 	CPUFLAGS += -D__arm__ -D__NEON_OPT
 	HAVE_NEON=1
@@ -268,7 +287,7 @@ else ifneq (,$(findstring armv,$(platform)))
 else ifeq ($(platform), emscripten)
 	TARGET := $(TARGET_NAME)_libretro_$(platform).bc
 	GLES := 1
-	CPUFLAGS += -Dasm=asmerror -D__asm__=asmerror  
+	CPUFLAGS += -Dasm=asmerror -D__asm__=asmerror
 	PLATCFLAGS += -Drglgen_symbol_map=craft_rglgen_symbol_map \
 					  -Drglgen_resolve_symbols_custom=craft_rglgen_resolve_symbols_custom \
 					  -Drglgen_resolve_symbols=craft_rglgen_resolve_symbols \
@@ -287,7 +306,7 @@ else ifeq ($(platform), gcw0)
    CFLAGS += $(PTHREAD_FLAGS) -DHAVE_MKDIR
    CFLAGS += -march=mips32 -mtune=mips32r2 -mhard-float -DSQLITE_OS_OTHER=1
    CXXFLAGS += -ffast-math -march=mips32 -mtune=mips32r2 -mhard-float -DSQLITE_OS_OTHER=1
-   
+
    GLES = 1
    GL_LIB := -lGLESv2
 # Windows MSVC 2010 x64
@@ -370,8 +389,12 @@ else ifneq (,$(findstring win,$(platform)))
 	GL_LIB := -lopengl32
 	CC = gcc
 	CXX = g++
+	SHARED := -shared -static-libgcc -static-libstdc++ -s -Wl,--no-undefined
 
 endif
+
+
+CORE_DIR := .
 
 include Makefile.common
 
@@ -432,12 +455,28 @@ endif
 
 LDFLAGS	 += $(fpic) $(LIBS)
 
+LUADIR := deps/lua/src
+LUALIB := $(LUADIR)/liblua.a
+ifeq ($(WANT_JIT),1)
+   LUADIR := deps/luajit/src
+   LUALIB := $(LUADIR)/libluajit.a
+   LIBS += -ldl
+   CFLAGS += -DHAVE_JIT
+endif
+CFLAGS += -I$(LUADIR) $(DEFINES) -DOUTSIDE_SPEEX -DRANDOM_PREFIX=speex -DEXPORT= -DFIXED_POINT
+LIBS += $(LUALIB) $(LIBM)
+
 ifeq ($(HAVE_LIBCURL),1)
 LDFLAGS += -lcurl
 endif
+ifneq ($(SANITIZER),)
+   CFLAGS += -fsanitize=$(SANITIZER)
+   LDFLAGS += -fsanitize=$(SANITIZER)
+   SHARED := -shared
+endif
 
 OBJOUT   = -o
-LINKOUT  = -o 
+LINKOUT  = -o
 
 ifneq (,$(findstring msvc,$(platform)))
 	OBJOUT = -Fo
@@ -462,7 +501,7 @@ $(TARGET): $(OBJECTS)
 ifeq ($(STATIC_LINKING), 1)
 	$(AR) rcs $@ $(OBJECTS)
 else
-	$(LD) $(LINKOUT)$@ $(OBJECTS) $(LDFLAGS) $(GL_LIB)
+	$(LD) $(SHARED) $(LINKOUT)$@ $(OBJECTS) $(LDFLAGS) $(GL_LIB)
 endif
 
 %.o: %.S
@@ -477,6 +516,6 @@ endif
 clean:
 	rm -f $(OBJECTS) $(TARGET) $(OBJECTS:.o=.d)
 
-.PHONY: clean
+.PHONY: clean all
 -include $(OBJECTS:.o=.d)
 endif
