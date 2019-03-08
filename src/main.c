@@ -23,23 +23,10 @@
 #include <tinycthread.h>
 #include "world.h"
 #include "renderer.h"
+#include "luaapi.h"
 
 #ifdef __LIBRETRO__
 #include <retro_miscellaneous.h>
-#endif
-
-#ifdef HAVE_JIT
-#include "luajit.h"
-#endif
-
-// LuaUTF8
-#include "lua.h"
-
-//#include "deps/luautf8/lutf8lib.h"
-
-// LuaSocket
-#ifdef WANT_LUASOCKET
-#include "deps/luasocket/luasocket.h"
 #endif
 
 #include "../textures/font_texture.h"
@@ -81,7 +68,6 @@ float DEADZONE_RADIUS = 0.040;
 #define WORKER_BUSY 1
 #define WORKER_DONE 2
 
-static lua_State *L;
 
 typedef struct {
     Map map;
@@ -3295,13 +3281,7 @@ int main_init(void)
 #endif
    srand(time(NULL));
    rand();
-
-   L = luaL_newstate();
-   luaL_openlibs(L);
-
-   #ifdef HAVE_JIT
-      luaJIT_setmode(L, -1, LUAJIT_MODE_WRAPCFUNC|LUAJIT_MODE_ON);
-   #endif
+   luaapi_init();
 
    return 0;
 }
@@ -3346,12 +3326,15 @@ int main_load_game(int argc, char **argv)
    main_load_graphics();
 
    // CHECK COMMAND LINE ARGUMENTS //
-   if (argc == 2 || argc == 3)
+   if (argc >= 2 )
    {
-
+     if(luaapi_load(argv[1])) exit(1);
+   }
+   if (argc >= 3)
+   {
       g->mode = MODE_ONLINE;
-      strncpy(g->server_addr, argv[1], MAX_ADDR_LENGTH);
-      g->server_port = argc == 3 ? atoi(argv[2]) : DEFAULT_PORT;
+      strncpy(g->server_addr, argv[2], MAX_ADDR_LENGTH);
+      g->server_port = argc == 4 ? atoi(argv[3]) : DEFAULT_PORT;
       snprintf(g->db_path, MAX_PATH_LENGTH,
             "cache.%s.%d.db", g->server_addr, g->server_port);
    }
@@ -3444,11 +3427,10 @@ void main_deinit(void)
    renderer_del_buffer(info.sky_buffer);
    delete_all_chunks();
    delete_all_players();
-
-   lua_close(L);
+   luaapi_deinit();
 }
 
-int main_run(void)
+int main_run(double frame_time)
 {
    int i;
    double now, dt;
@@ -3480,6 +3462,8 @@ int main_run(void)
 
    // HANDLE MOUSE INPUT //
    handle_mouse_input();
+
+   luaapi_run(frame_time);
 
    // HANDLE MOVEMENT //
    handle_movement(dt);

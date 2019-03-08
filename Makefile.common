@@ -6,7 +6,7 @@ GIT_VERSION ?= $(shell git describe --abbrev=4 --dirty --always --tags)
 
 ifeq ($(HAVE_OPENGL),0)
 else
-INCFLAGS += 
+INCFLAGS +=
 endif
 
 INCFLAGS += \
@@ -31,7 +31,8 @@ SOURCES_C += \
 	 $(CRAFT_DIR)/ring.c \
 	 $(CRAFT_DIR)/sign.c \
 	 $(CRAFT_DIR)/world.c \
-	 $(CRAFT_DIR)/renderer.c
+	 $(CRAFT_DIR)/renderer.c \
+	 $(CRAFT_DIR)/luaapi.c
 
 SOURCES_C += \
 	$(LIBRETRO_DIR)/libretro.c

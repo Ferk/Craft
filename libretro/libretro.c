@@ -265,6 +265,12 @@ static void check_variables(bool first_time_startup)
 static unsigned logic_frames        = 0;
 static unsigned amount_frames       = 0;
 
+double frame_time = 0;
+static void frame_time_cb(retro_usec_t usec)
+{
+   frame_time = usec / 1000000.0;
+}
+
 extern void on_key(void);
 
 void retro_run(void)
@@ -282,7 +288,11 @@ void retro_run(void)
    }
    if (init_program_now)
    {
-      main_load_game(0, NULL);
+      char* argv[2];
+      argv[0] = "Craft";
+      argv[1] = "main.lua";
+      main_load_game(2, argv);
+      //main_load_game(0, NULL);
       init_program_now = false;
       video_cb(NULL, game_width, game_height, 0);
       return;
@@ -302,7 +312,7 @@ void retro_run(void)
       on_key();
    }
 
-   if (main_run() != 1)
+   if (main_run(frame_time) != 1)
    {
       /* Do shutdown or something similar. */
    }
@@ -345,6 +355,9 @@ bool retro_load_game(const struct retro_game_info *info)
       log_cb(RETRO_LOG_INFO, "XRGB8888 is not supported.\n");
       return false;
    }
+
+   struct retro_frame_time_callback frame_cb = { frame_time_cb, 1000000 / 60 };
+   environ_cb(RETRO_ENVIRONMENT_SET_FRAME_TIME_CALLBACK, &frame_cb);
 
 #if defined(HAVE_OPENGL) || defined(HAVE_OPENGLES)
    params.context_reset         = context_reset;
