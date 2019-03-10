@@ -1464,7 +1464,7 @@ static void load_chunk(WorkerItem *item)
     int q = item->q;
     Map *block_map = item->block_maps[1][1];
     Map *light_map = item->light_maps[1][1];
-    create_world(p, q, map_set_func, block_map);
+    luaapi_world_generate(p, q, map_set_func, block_map);
     db_load_blocks(block_map, p, q);
     db_load_lights(light_map, p, q);
 }
@@ -3108,7 +3108,7 @@ void handle_movement(double dt)
             {
                if (JUMPING_FLASH_MODE)
                {
-                  s->ry = RADIANS(-90);
+                  //s->ry = RADIANS(-90);
                   dy = 16;
                }
                else
